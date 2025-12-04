@@ -3,30 +3,31 @@ import pandas as pd
 from dataclasses import dataclass
 
 API_KEY = "JOUW_ECHTE_API_KEY_HIER"
-BASE_URL = "https://api.cbso.nbb.be/CBSO/..."
+BASE_URL = "https://ws.uat2.cbso.nbb.be/authentic/legalEntity"
 
 def get_annual_accounts(enterprise_number: str, year: int):
     headers = {
         "Ocp-Apim-Subscription-Key": API_KEY,
         "Accept": "application/json"
     }
+    url = f"{BASE_URL}/{enterprise_number}/references"
+
     params = {
-        "enterpriseNumber": enterprise_number,
         "financialYear": year
     }
 
-    response = requests.get(BASE_URL, headers=headers, params=params)
+    response = requests.get(url, headers=headers, params=params)
     response.raise_for_status()
     return response.json()
 
-
 @dataclass
 class AnnualAccountData:
-    enterprise_number: str
-    year: int
-    equity: float
-    total_assets: float
-    total_liabilities: float
+    def __init__(self, enterprise_number: str, year: int, equity: float, total_assets: float, total_liabilities: float):
+        self.enterprise_number = enterprise_number
+        self.year = year
+        self.equity = equity
+        self.total_assets = total_assets
+        self.total_liabilities = total_liabilities
 
     @property
     def solvency_ratio(self) -> float:
