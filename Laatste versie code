@@ -1,0 +1,131 @@
+import requests
+
+jwt_token = "eyJhbGciOiJSUzI1NiJ9.eyJ0ZWFtIjoxNTM5OTY1MTk3LCJpYXQiOjE3NjQ4NjEzODMsImlzcyI6ImJpenp5OnB1YmxpYy1hcGkiLCJzdWIiOiIxNTM5OTY1MTk3In0.U34ClDcN5YZzDbkNSxQlGcLLvfn-V0m8iAh-fJwMiml2FQpo9nb9elgxoA7Qg5yn6VDopyq9tqTUk-ezTjrn-m-ixJLxe4CHKMuRDk2sgo5jBLWrxQgTLwFqLKQyxraUcJnVYh6nI8l11nLZT-X2-p0Z1gf6LP1HWs1Y0SWlfd6-Ci8qro7wyAQSplj22KiJ2Aphmm695elV8A4Wii4DIG2AgWB_goXfbs0fWoAh4aQLZxgOsdkyo4IbQNP-SAdHb2J_CYaGqsqkF6amxSfGT8Y-OJOZaT-zqLbmMy6p5c-vAG9HkusypDoToNg5bUpl84bPKEWNystRoUSimnTgyA"
+url = "https://api.bizzy.ai/v1/companies/BE/"
+
+def getData(bedrijfsnummer):
+
+    headers = {
+        "Authorization": f"Bearer {jwt_token}",
+        "Accept": "application/json"
+    }
+
+    response = requests.get(url + bedrijfsnummer + "/financials", headers=headers)
+
+    if response.status_code == 200:
+        data = response.json()
+        print("Financiële gegevens:", data)
+    else:
+        print(f"Fout bij ophalen van data: {response.status_code}")
+        print(response.text)
+
+if __name__ == "__main__":
+    bedrijfsnummer = str(input("Bedrijfsnummer: "))
+    x = getData(bedrijfsnummer)
+    print(x)
+
+import re
+from dataclasses import dataclass
+from typing import Optional, List
+
+def clean_vat_number(raw: str) -> str:
+
+    digits = re.sub(r"\D", "", raw)
+
+    if len(digits) == 10 and digits.startswith("0"):
+        digits = digits[1:]
+
+    if len(digits) != 9:
+        raise ValueError(
+            f"Ongeldig BTW-nummer: verwacht 9 cijfers, kreeg {len(digits)} ({digits})"
+        )
+
+    return digits
+
+
+@dataclass
+class AnnualAccount:
+    def __init__(self, year: int, equity: float, total_assets: float, total_liabilities: float):
+        self.year = year
+        self.equity = equity
+        self.total_assets = total_assets
+        self.total_liabilities = total_liabilities
+
+    @property
+    def solvency_ratio(self) -> Optional[float]:
+        if self.total_assets:
+            return self.equity / self.total_assets
+        return None
+
+    @property
+    def debt_ratio(self) -> Optional[float]:
+        if self.total_assets:
+            return self.total_liabilities / self.total_assets
+        return None
+
+    def pretty_print(self):
+        print(f"\n------ Jaar {self.year} ------")
+        print(f"Eigen vermogen     : {self.equity:,.2f} EUR")
+        print(f"Totaal actief      : {self.total_assets:,.2f} EUR")
+        print(f"Totaal schulden    : {self.total_liabilities:,.2f} EUR")
+
+        if self.solvency_ratio is not None:
+            print(f"Solvabiliteit      : {self.solvency_ratio:.2%}")
+        else:
+            print("Solvabiliteit      : n.v.t.")
+
+        if self.debt_ratio is not None:
+            print(f"Schuldratio        : {self.debt_ratio:.2%}")
+        else:
+            print("Schuldratio        : n.v.t.")
+
+def parse_financials_to_classes(data: dict) -> List[AnnualAccount]:
+
+# Lukas -> pas de key-namen aan aan de echte API
+
+    accounts = []
+
+    for item in data.get("financials", []):
+        year = int(item.get("year"))
+        equity = float(item.get("equity", 0))
+        total_assets = float(item.get("total_assets", 0))
+        total_liabilities = float(item.get("total_liabilities", 0))
+
+        accounts.append(
+            AnnualAccount(
+                year=year,
+                equity=equity,
+                total_assets=total_assets,
+                total_liabilities=total_liabilities,
+            )
+        )
+
+    return accounts
+
+
+
+
+if __name__ == "__main__":
+    raw = input("Gelieve uw BTW-nummer te geven: ")
+
+    try:
+        nummer = clean_vat_number(raw)
+    except ValueError as e:
+        print(e)
+        exit(1)
+
+    try:
+        data = getData(nummer)
+    except Exception as e:
+        print("Kon data niet ophalen:", e)
+        exit(1)
+
+    # parse naar objecten
+    accounts = parse_financials_to_classes(data)
+
+    if not accounts:
+        print("Geen financiële gegevens gevonden.")
+    else:
+        print(f"\nFinanciële gegevens voor {nummer}:")
+        for acc in sorted(accounts, key=lambda x: x.year, reverse=True):
+            acc.pretty_print()
